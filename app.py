@@ -3,7 +3,7 @@ import requests
 import json
 
 # 从 Streamlit Secrets 获取 access_token
-access_token = st.secrets["ACCESS_TOKEN"]
+access_token = st.secrets["access_token"]
 
 def generate_speech(speaker, emotion, text):
     url = "https://infer.acgnai.top/infer/gen"
