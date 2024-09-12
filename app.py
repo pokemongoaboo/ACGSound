@@ -15,6 +15,7 @@ def get_character_list():
         "content-type": "application/json"
     }
     params = {
+        "access_token": st.secrets['access_token'],
         "type": "tts",
         "brand": "gpt-sovits",
         "name": "anime"
