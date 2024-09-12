@@ -12,17 +12,16 @@ st.title("角色列表")
 def get_character_list():
     url = "https://infer.acgnai.top/infer/spks"
     headers = {
-        "content-type": "application/json",
-        "Authorization": f"Bearer {st.secrets['access_token']}"
+        "content-type": "application/json"
     }
-    payload = {
+    params = {
         "type": "tts",
         "brand": "gpt-sovits",
         "name": "anime"
     }
     
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.get(url, headers=headers, params=params)
         response.raise_for_status()  # 如果请求不成功，将引发异常
         return response.json()
     except requests.RequestException as e:
