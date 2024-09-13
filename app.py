@@ -125,11 +125,14 @@ def generate_story(character, theme, plot_point, page_count):
     請以下列主題：{theme}發想故事，
     在{page_count}的篇幅內，
     說明一個{character}的故事，
+    請在故事中包含以下情緒的段落：
+    "开心_happy", 
+    "难过_sad", 
+    "生气_angry",
+    "中立_neutral", 
+    每種情緒至少出現一次。    
     並注意在倒數第三頁加入{plot_point}的元素，
     最後的故事需要是溫馨、快樂的結局。
-    請在故事中包含以下情緒的段落：
-    "中立_neutral", "开心_happy", "难过_sad", "生气_angry"
-    每種情緒至少出現一次。
     """
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -163,7 +166,7 @@ def generate_paged_story(story, page_count, character, theme, plot_point):
 def determine_emotion(text):
     prompt = f"""
     请判断以下文本的主要情绪。只能从以下选项中选择一个：
-    "中立_neutral", "开心_happy", "难过_sad", "生气_angry"
+    "开心_happy", "难过_sad", "生气_angry","中立_neutral",
     如果无法确定，请选择"中立_neutral"。
     
     文本：{text}
