@@ -33,14 +33,13 @@ def create_retrying_session(retries=5, backoff_factor=0.5, status_forcelist=(500
     retry = Retry(total=retries, read=retries, connect=retries,
                   backoff_factor=backoff_factor, status_forcelist=status_forcelist)
     adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
     session.mount('https://', adapter)
     return session
 
-def check_api_status(url, timeout=5):
+def check_api_status(url, timeout=10):
     try:
         response = requests.get(url, timeout=timeout)
-        return response.status_code == 200
+        return response.status_code == 405
     except RequestException:
         return False
 
