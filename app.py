@@ -7,6 +7,7 @@ import re
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+import os
 
 # 设置 OpenAI 客户端
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -35,7 +36,7 @@ def create_retrying_session(retries=3, backoff_factor=0.3, status_forcelist=(500
     return session
 
 # 生成语音
-def generate_speech(emotion, text):
+def generate_speech(emotion, text, max_retries=3):
     url = "https://infer.acgnai.top/infer/gen"
     headers = {
         "Content-Type": "application/json"
@@ -65,16 +66,39 @@ def generate_speech(emotion, text):
     }
     
     session = create_retrying_session()
-    try:
-        response = session.post(url, headers=headers, json=data)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        st.error(f"语音生成 API 调用失败：{str(e)}")
-        st.error(f"请求 URL: {url}")
-        st.error(f"请求头: {headers}")
-        st.error(f"请求数据: {json.dumps(data, indent=2)}")
-        return None
+    for attempt in range(max_retries):
+        try:
+            response = session.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:
+                st.warning(f"语音生成失败，正在进行第 {attempt + 2} 次尝试...")
+                time.sleep(2 ** attempt)  # 指数退避
+            else:
+                st.error(f"语音生成 API 调用失败：{str(e)}")
+                st.error(f"请求 URL: {url}")
+                st.error(f"请求头: {headers}")
+                st.error(f"请求数据: {json.dumps(data, indent=2)}")
+                return None
+
+# 缓存机制
+@st.cache_data
+def get_cached_audio(text, emotion):
+    cache_dir = "audio_cache"
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f"{hash(text + emotion)}.wav")
+    if os.path.exists(cache_file):
+        with open(cache_file, "rb") as f:
+            return f.read()
+    return None
+
+def save_cached_audio(text, emotion, audio_data):
+    cache_dir = "audio_cache"
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f"{hash(text + emotion)}.wav")
+    with open(cache_file, "wb") as f:
+        f.write(audio_data)
 
 # 生成故事转折重点
 def generate_plot_points(character, theme):
@@ -101,12 +125,11 @@ def generate_story(character, theme, plot_point, page_count):
     在{page_count}的篇幅內，
     說明一個{character}的故事，
     請在故事中包含以下情緒的段落：
-    第1段 : "生气_angry",
-    第2段 : "中立_neutral", 
-    第3段 : "难过_sad", 
-    第4段 : "开心_happy",
-    第5段以及之後的段落，情緒是 :  "开心_happy" 或 "中立_neutral",
-     
+    "开心_happy", 
+    "难过_sad", 
+    "生气_angry",
+    "中立_neutral", 
+    每種情緒至少出現一次，
     在故事說明中，不需要出現_happy, _sad, _angry, _neutral, 等文字,
     並注意在倒數第三頁加入{plot_point}的元素，
     最後的故事需要是溫馨、快樂的結局。
@@ -143,7 +166,7 @@ def generate_paged_story(story, page_count, character, theme, plot_point):
 def determine_emotion(text):
     prompt = f"""
     请判断以下文本的主要情绪。只能从以下选项中选择一个：
-    "开心_happy", "难过_sad", "生气_angry","中立_neutral",
+    "开心_happy", "难过_sad", "生气_angry", "中立_neutral",
     如果无法确定，请选择"中立_neutral"。
     
     文本：{text}
@@ -256,11 +279,19 @@ def main():
                 
                 # 生成语音
                 with st.spinner(f"正在生成第 {i} 页的语音..."):
-                    speech_result = generate_speech(emotion, text)
-                    if speech_result and 'audio' in speech_result:
-                        st.audio(speech_result['audio'], format='audio/wav')
+                    cached_audio = get_cached_audio(text, emotion)
+                    if cached_audio:
+                        st.audio(cached_audio, format='audio/wav')
+                        st.info("使用缓存的音频")
                     else:
-                        st.warning(f"第 {i} 页语音生成失败")
+                        speech_result = generate_speech(emotion, text)
+                        if speech_result and 'audio' in speech_result:
+                            st.audio(speech_result['audio'], format='audio/wav')
+                            save_cached_audio(text, emotion, speech_result['audio'])
+                        else:
+                            st.warning(f"第 {i} 页语音生成失败")
+                            st.warning("使用备用文本到语音服务...")
+                            # 这里可以实现备用的文本到语音服务
                 
                 with st.spinner(f"正在生成第 {i} 页的图片..."):
                     image_prompt = page.get('image_prompt', '')
