@@ -7,6 +7,7 @@ import re
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+from requests.exceptions import RequestException, Timeout, ConnectionError
 import os
 import base64
 
@@ -35,6 +36,14 @@ def create_retrying_session(retries=5, backoff_factor=0.5, status_forcelist=(500
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     return session
+
+def check_api_status(url, timeout=5):
+    try:
+        response = requests.get(url, timeout=timeout)
+        return response.status_code == 200
+    except RequestException:
+        return False
+
 
 # 生成语音
 def generate_speech(emotion, text, max_retries=10):
@@ -66,28 +75,46 @@ def generate_speech(emotion, text, max_retries=10):
         }
     }
     
+    if not check_api_status(url):
+        st.error("API 服务器当前不可用，请稍后再试。")
+        return None
+
     session = create_retrying_session()
     for attempt in range(max_retries):
         try:
-            response = session.post(url, headers=headers, json=data, timeout=30)  # 添加超时
+            response = session.post(url, headers=headers, json=data, timeout=30)
             response.raise_for_status()
             result = response.json()
             if 'audio' in result:
                 audio_bytes = base64.b64decode(result['audio'])
                 return audio_bytes
+            elif 'error' in result:
+                raise ValueError(f"API 返回错误: {result['error']}")
             else:
-                raise ValueError("API response does not contain 'audio' field")
-        except (requests.exceptions.RequestException, ValueError) as e:
-            if attempt < max_retries - 1:
-                wait_time = min(30, 2 ** attempt)  # 指数退避策略
-                st.warning(f"语音生成失败，正在进行第 {attempt + 2} 次尝试... 等待 {wait_time} 秒")
-                time.sleep(wait_time)
-            else:
-                st.error(f"语音生成 API 调用失败：{str(e)}")
-                st.error(f"请求 URL: {url}")
-                st.error(f"请求头: {headers}")
-                st.error(f"请求数据: {json.dumps(data, indent=2)}")
-                return None
+                raise ValueError("API 响应不包含 'audio' 字段")
+        except Timeout:
+            st.warning(f"请求超时，正在进行第 {attempt + 2} 次尝试...")
+        except ConnectionError:
+            st.warning(f"网络连接错误，正在进行第 {attempt + 2} 次尝试...")
+        except RequestException as e:
+            st.warning(f"请求异常：{str(e)}，正在进行第 {attempt + 2} 次尝试...")
+        except ValueError as e:
+            st.error(f"API 错误：{str(e)}")
+            return None
+        
+        if attempt < max_retries - 1:
+            wait_time = min(30, 2 ** attempt)
+            st.info(f"等待 {wait_time} 秒后重试...")
+            time.sleep(wait_time)
+        else:
+            st.error("达到最大重试次数，语音生成失败。")
+            st.error(f"请求 URL: {url}")
+            st.error(f"请求头: {headers}")
+            st.error(f"请求数据: {json.dumps(data, indent=2)}")
+            return None
+
+
+
 
 
 # 缓存机制
