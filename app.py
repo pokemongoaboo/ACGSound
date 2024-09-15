@@ -244,6 +244,7 @@ def preprocess_json(json_string):
         print(f"問題的 JSON 字符串: {json_string}")
         raise
 
+
 # 主函数
 def main():
     # 选择或输入主角
@@ -308,4 +309,37 @@ def main():
                 emotion = determine_emotion(text)
                 st.write("判断的情绪：", emotion)
                 
-                # 生
+                # 生成语音
+                with st.spinner(f"正在生成第 {i} 页的语音..."):
+                    cached_audio = get_cached_audio(text, emotion)
+                    if cached_audio:
+                        st.audio(cached_audio, format='audio/wav')
+                        st.info("使用缓存的音频")
+                    else:
+                        audio_data = generate_speech(emotion, text)
+                        if audio_data:
+                            st.audio(audio_data, format='audio/wav')
+                            save_cached_audio(text, emotion, audio_data)
+                        else:
+                            st.warning(f"第 {i} 页语音生成失败")
+                            st.warning("使用备用文本到语音服务...")
+                            # 这里可以实现备用的文本到语音服务
+                
+                # 生成图片
+                with st.spinner(f"正在生成第 {i} 页的图片..."):
+                    image_prompt = page.get('image_prompt', '')
+                    if image_prompt:
+                        image_url = generate_image(image_prompt, style_base)
+                        st.image(image_url, caption=f"第 {i} 页的插图")
+                    else:
+                        st.warning(f"第 {i} 页没有图像提示")
+                
+                # 添加延迟以避免API限制
+                time.sleep(5)
+
+        except Exception as e:
+            st.error(f"发生错误：{str(e)}")
+            st.exception(e)
+
+if __name__ == "__main__":
+    main()
