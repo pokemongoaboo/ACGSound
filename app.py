@@ -8,6 +8,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 import os
+import base64
 
 # 设置 OpenAI 客户端
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -70,8 +71,14 @@ def generate_speech(emotion, text, max_retries=3):
         try:
             response = session.post(url, headers=headers, json=data)
             response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
+            result = response.json()
+            if 'audio' in result:
+                # 将 base64 编码的字符串转换为字节
+                audio_bytes = base64.b64decode(result['audio'])
+                return audio_bytes
+            else:
+                raise ValueError("API response does not contain 'audio' field")
+        except (requests.exceptions.RequestException, ValueError) as e:
             if attempt < max_retries - 1:
                 st.warning(f"语音生成失败，正在进行第 {attempt + 2} 次尝试...")
                 time.sleep(2 ** attempt)  # 指数退避
@@ -284,10 +291,10 @@ def main():
                         st.audio(cached_audio, format='audio/wav')
                         st.info("使用缓存的音频")
                     else:
-                        speech_result = generate_speech(emotion, text)
-                        if speech_result and 'audio' in speech_result:
-                            st.audio(speech_result['audio'], format='audio/wav')
-                            save_cached_audio(text, emotion, speech_result['audio'])
+                        audio_data = generate_speech(emotion, text)
+                        if audio_data:
+                            st.audio(audio_data, format='audio/wav')
+                            save_cached_audio(text, emotion, audio_data)
                         else:
                             st.warning(f"第 {i} 页语音生成失败")
                             st.warning("使用备用文本到语音服务...")
