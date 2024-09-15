@@ -27,7 +27,7 @@ st.set_page_config(page_title="互動式繪本生成器", layout="wide")
 st.title("互動式繪本生成器")
 
 # 创建一个带有重试机制的会话
-def create_retrying_session(retries=3, backoff_factor=0.3, status_forcelist=(500, 502, 504)):
+def create_retrying_session(retries=5, backoff_factor=0.5, status_forcelist=(500, 502, 504)):
     session = requests.Session()
     retry = Retry(total=retries, read=retries, connect=retries,
                   backoff_factor=backoff_factor, status_forcelist=status_forcelist)
@@ -37,7 +37,7 @@ def create_retrying_session(retries=3, backoff_factor=0.3, status_forcelist=(500
     return session
 
 # 生成语音
-def generate_speech(emotion, text, max_retries=3):
+def generate_speech(emotion, text, max_retries=10):
     url = "https://infer.acgnai.top/infer/gen"
     headers = {
         "Content-Type": "application/json"
@@ -81,7 +81,7 @@ def generate_speech(emotion, text, max_retries=3):
         except (requests.exceptions.RequestException, ValueError) as e:
             if attempt < max_retries - 1:
                 st.warning(f"语音生成失败，正在进行第 {attempt + 2} 次尝试...")
-                time.sleep(2 ** attempt)  # 指数退避
+                time.sleep(10 + 5 * attempt)  # 增加重试间隔
             else:
                 st.error(f"语音生成 API 调用失败：{str(e)}")
                 st.error(f"请求 URL: {url}")
@@ -244,7 +244,6 @@ def preprocess_json(json_string):
         print(f"問題的 JSON 字符串: {json_string}")
         raise
 
-
 # 主函数
 def main():
     # 选择或输入主角
@@ -335,7 +334,7 @@ def main():
                         st.warning(f"第 {i} 页没有图像提示")
                 
                 # 添加延迟以避免API限制
-                time.sleep(5)
+                time.sleep(15)  # 增加延迟时间到15秒
 
         except Exception as e:
             st.error(f"发生错误：{str(e)}")
