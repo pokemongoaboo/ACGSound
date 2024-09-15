@@ -101,11 +101,11 @@ def generate_story(character, theme, plot_point, page_count):
     在{page_count}的篇幅內，
     說明一個{character}的故事，
     請在故事中包含以下情緒的段落：
-    首先是 : "中立_neutral",
-    然後是 : "开心_happy", 
-    然後是 : "生气_angry",
-    接下來是 :"难过_sad", 
-    之後回復成 "开心_happy" 或 "中立_neutral",
+    第1段 : "中立_neutral",
+    第2段 : "开心_happy", 
+    第3段 : "生气_angry",
+    第4段 :"难过_sad", 
+    第5段以及之後的段落，情緒是 :  "开心_happy" 或 "中立_neutral",
      
     在故事說明中，不需要出現_happy, _sad, _angry, _neutral, 等文字,
     並注意在倒數第三頁加入{plot_point}的元素，
