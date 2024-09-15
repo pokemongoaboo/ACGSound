@@ -69,25 +69,26 @@ def generate_speech(emotion, text, max_retries=10):
     session = create_retrying_session()
     for attempt in range(max_retries):
         try:
-            response = session.post(url, headers=headers, json=data)
+            response = session.post(url, headers=headers, json=data, timeout=30)  # 添加超时
             response.raise_for_status()
             result = response.json()
             if 'audio' in result:
-                # 将 base64 编码的字符串转换为字节
                 audio_bytes = base64.b64decode(result['audio'])
                 return audio_bytes
             else:
                 raise ValueError("API response does not contain 'audio' field")
         except (requests.exceptions.RequestException, ValueError) as e:
             if attempt < max_retries - 1:
-                st.warning(f"语音生成失败，正在进行第 {attempt + 2} 次尝试...")
-                time.sleep(10 + 5 * attempt)  # 增加重试间隔
+                wait_time = min(30, 2 ** attempt)  # 指数退避策略
+                st.warning(f"语音生成失败，正在进行第 {attempt + 2} 次尝试... 等待 {wait_time} 秒")
+                time.sleep(wait_time)
             else:
                 st.error(f"语音生成 API 调用失败：{str(e)}")
                 st.error(f"请求 URL: {url}")
                 st.error(f"请求头: {headers}")
                 st.error(f"请求数据: {json.dumps(data, indent=2)}")
                 return None
+
 
 # 缓存机制
 @st.cache_data
