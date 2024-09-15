@@ -7,24 +7,30 @@ import re
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+import logging
+import socket
 
-# 設置 OpenAI 客戶端
+# 设置日志
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# 设置 OpenAI 客户端
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# 從 Streamlit Secrets 獲取 access_token
+# 从 Streamlit Secrets 获取 access_token
 access_token = st.secrets["access_token"]
 
-# 主角選項
+# 主角选项
 story_characters = ["貓咪", "狗狗", "花花", "小鳥", "小石頭"]
 
-# 主題選項
+# 主题选项
 themes = ["親情", "友情", "冒險", "度假", "運動比賽"]
 
-# 頁面設置
+# 页面设置
 st.set_page_config(page_title="互動式繪本生成器", layout="wide")
 st.title("互動式繪本生成器")
 
-# 創建一個帶有重試機制的會話
+# 创建一个带有重试机制的会话
 def create_retrying_session(retries=3, backoff_factor=0.3, status_forcelist=(500, 502, 504)):
     session = requests.Session()
     retry = Retry(total=retries, read=retries, connect=retries,
@@ -34,8 +40,20 @@ def create_retrying_session(retries=3, backoff_factor=0.3, status_forcelist=(500
     session.mount('https://', adapter)
     return session
 
-# 生成語音
-def generate_speech(text, emotion="neutral", max_retries=5, initial_wait=1, max_wait=16):
+# 检查网络连接
+def check_network():
+    try:
+        socket.create_connection(("infer.acgnai.top", 80))
+        return True
+    except OSError:
+        return False
+
+# 生成语音（优化版）
+def generate_speech(text, emotion="neutral", max_retries=10, initial_wait=0.5, max_wait=32):
+    if not check_network():
+        st.error("網絡連接出現問題，請檢查您的網絡設置。")
+        return None
+
     url = "https://infer.acgnai.top/infer/gen"
     headers = {
         "Content-Type": "application/json"
@@ -69,23 +87,35 @@ def generate_speech(text, emotion="neutral", max_retries=5, initial_wait=1, max_
 
     for attempt in range(max_retries):
         try:
-            response = session.post(url, headers=headers, json=data)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            if attempt < max_retries - 1:  # 如果不是最後一次嘗試
-                st.warning(f"語音生成失敗，正在重試 (嘗試 {attempt + 1}/{max_retries})...")
-                time.sleep(wait_time)
-                wait_time = min(wait_time * 2, max_wait)  # 指數退避，但不超過最大等待時間
+            with st.spinner(f"正在生成語音，第 {attempt + 1} 次嘗試..."):
+                logger.debug(f"開始嘗試生成語音，文本：{text[:50]}...")
+                response = session.post(url, headers=headers, json=data, timeout=30)
+                response.raise_for_status()
+                logger.info(f"語音生成成功，嘗試次數：{attempt + 1}")
+                return response.json()
+        except requests.exceptions.Timeout:
+            logger.warning(f"請求超時，嘗試 {attempt + 1}/{max_retries}")
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:  # Too Many Requests
+                logger.warning("請求頻率過高，等待更長時間...")
+                time.sleep(min(wait_time * 4, max_wait))
             else:
-                st.error("語音生成服務暫時不可用，已達到最大重試次數。")
-                return None
+                logger.error(f"HTTP 錯誤：{e}")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"請求異常：{e}")
+        
+        if attempt < max_retries - 1:
+            st.warning(f"語音生成失敗，正在重試（嘗試 {attempt + 1}/{max_retries}）...")
+        else:
+            st.error("語音生成失敗，請稍後重試。")
+        
+        wait_time = min(wait_time * 2, max_wait)
+        time.sleep(wait_time)
 
-    return None  # 如果所有嘗試都失敗，返回 None
+    logger.error("達到最大重試次數，語音生成失敗")
+    return None
 
-
-
-# 生成故事轉折重點
+# 生成故事转折重点
 def generate_plot_points(character, theme):
     prompt = f"""為一個關於{character}的{theme}故事生成3到5個可能的故事轉折重點。
     每個重點應該簡短而有趣。
@@ -125,7 +155,7 @@ def generate_story(character, theme, plot_point, page_count):
     )
     return response.choices[0].message.content
 
-# 生成分頁故事
+# 生成分页故事
 def generate_paged_story(story, page_count, character, theme, plot_point):
     prompt = f"""
     將以下故事大綱細分至預計{page_count}個跨頁的篇幅，每頁需要包括(text，image_prompt)，
@@ -147,7 +177,7 @@ def generate_paged_story(story, page_count, character, theme, plot_point):
     )
     return response.choices[0].message.content
 
-# 判斷情緒
+# 判断情绪
 def determine_emotion(text):
     prompt = f"""
     請判斷以下文本的主要情緒。只能從以下選項中選擇一個：
@@ -162,7 +192,7 @@ def determine_emotion(text):
     )
     return response.choices[0].message.content.strip()
 
-# 生成風格基礎
+# 生成风格基础
 def generate_style_base(story):
     prompt = f"""
     基於以下故事，請思考大方向上你想要呈現的視覺效果，這是你用來統一整體繪本風格的描述，請盡量精簡，使用英文撰寫：
@@ -175,7 +205,7 @@ def generate_style_base(story):
     )
     return response.choices[0].message.content
 
-# 生成圖片
+# 生成图片
 def generate_image(image_prompt, style_base):
     final_prompt = f"""
     Based on the image prompt: "{image_prompt}" and the style base: "{style_base}",
@@ -192,7 +222,7 @@ def generate_image(image_prompt, style_base):
     )
     return response.data[0].url
 
-# 預處理 JSON
+# 预处理 JSON
 def preprocess_json(json_string):
     json_string = re.sub(r'```json\s*', '', json_string)
     json_string = re.sub(r'\s*```', '', json_string)
@@ -203,87 +233,140 @@ def preprocess_json(json_string):
         json_string = json_string + ']'
     return json_string
 
-# 主函數
+# 主函数
 def main():
-    # 選擇或輸入主角
-    story_character = st.selectbox("選擇或輸入繪本主角:", story_characters + ["其他"])
+    st.sidebar.title("绘本生成设置")
+
+    # 选择或输入主角
+    story_character = st.sidebar.selectbox("选择或输入绘本主角:", story_characters + ["其他"])
     if story_character == "其他":
-        story_character = st.text_input("請輸入自定義主角:")
+        story_character = st.sidebar.text_input("请输入自定义主角:")
 
-    # 選擇或輸入主題
-    theme = st.selectbox("選擇或輸入繪本主題:", themes + ["其他"])
+    # 选择或输入主题
+    theme = st.sidebar.selectbox("选择或输入绘本主题:", themes + ["其他"])
     if theme == "其他":
-        theme = st.text_input("請輸入自定義主題:")
+        theme = st.sidebar.text_input("请输入自定义主题:")
 
-    # 選擇頁數
-    page_count = st.slider("選擇繪本頁數:", min_value=6, max_value=12, value=8)
+    # 选择页数
+    page_count = st.sidebar.slider("选择绘本页数:", min_value=6, max_value=12, value=8)
 
-    # 生成並選擇故事轉折重點
-    if st.button("生成故事轉折重點選項"):
-        plot_points = generate_plot_points(story_character, theme)
-        if plot_points:
-            st.session_state.plot_points = plot_points
-        else:
-            st.error("未能生成有效的轉折重點。請重試。")
+    # 生成并选择故事转折重点
+    if st.sidebar.button("生成故事转折重点选项"):
+        with st.spinner("正在生成故事转折重点..."):
+            plot_points = generate_plot_points(story_character, theme)
+            if plot_points:
+                st.session_state.plot_points = plot_points
+                st.success("成功生成故事转折重点！")
+            else:
+                st.error("未能生成有效的转折重点。请重试。")
 
     if 'plot_points' in st.session_state:
-        plot_point = st.selectbox("選擇或輸入繪本故事轉折重點:", 
-                                  ["請選擇"] + st.session_state.plot_points + ["其他"])
+        plot_point = st.sidebar.selectbox("选择或输入绘本故事转折重点:", 
+                                          ["请选择"] + st.session_state.plot_points + ["其他"])
         if plot_point == "其他":
-            plot_point = st.text_input("請輸入自定義故事轉折重點:")
-        elif plot_point == "請選擇":
-            st.warning("請選擇一個轉折重點或輸入自定義轉折重點。")
+            plot_point = st.sidebar.text_input("请输入自定义故事转折重点:")
+        elif plot_point == "请选择":
+            st.sidebar.warning("请选择一个转折重点或输入自定义转折重点。")
 
-    # 生成繪本
-    if st.button("生成繪本"):
+    # 生成绘本
+    if st.sidebar.button("生成绘本"):
+        if not check_network():
+            st.error("网络连接出现问题，请检查您的网络设置。")
+            return
+
+        if not story_character or not theme or plot_point in ["请选择", ""]:
+            st.error("请确保已选择主角、主题和转折重点。")
+            return
+
         try:
-            with st.spinner("正在生成故事..."):
-                story = generate_story(story_character, theme, plot_point, page_count)
-                st.write("故事大綱：", story)
+            progress_bar = st.progress(0)
+            status_text = st.empty()
 
-            with st.spinner("正在分頁故事..."):
-                paged_story = generate_paged_story(story, page_count, story_character, theme, plot_point)
+            # 生成故事
+            status_text.text("正在生成故事...")
+            story = generate_story(story_character, theme, plot_point, page_count)
+            progress_bar.progress(20)
+            st.write("故事大纲：", story)
 
-            with st.spinner("正在生成風格基礎..."):
-                style_base = generate_style_base(story)
+            # 分页故事
+            status_text.text("正在分页故事...")
+            paged_story = generate_paged_story(story, page_count, story_character, theme, plot_point)
+            progress_bar.progress(40)
 
-            # 預處理 JSON 字符串
+            # 生成风格基础
+            status_text.text("正在生成风格基础...")
+            style_base = generate_style_base(story)
+            progress_bar.progress(50)
+
+            # 预处理 JSON 字符串
             processed_paged_story = preprocess_json(paged_story)
             pages = json.loads(processed_paged_story)
 
-            st.success(f"成功解析 JSON。共有 {len(pages)} 頁。")
+            st.success(f"成功解析故事结构。共有 {len(pages)} 页。")
+            progress_bar.progress(60)
+
+            # 创建一个容器来存放所有页面
+            story_container = st.container()
 
             for i, page in enumerate(pages, 1):
-                st.write(f"第 {i} 頁")
-                text = page.get('text', '無文字')
-                st.write("文字：", text)
-                
-                # 判斷情緒
-                emotion = determine_emotion(text)
-                st.write("判斷的情緒：", emotion)
-                
-                # 生成語音
-                with st.spinner(f"正在生成第 {i} 頁的語音..."):
+                with story_container.expander(f"第 {i} 页", expanded=True):
+                    text = page.get('text', '无文字')
+                    st.write("文字：", text)
+                    
+                    # 判断情绪
+                    emotion = determine_emotion(text)
+                    st.write("判断的情绪：", emotion)
+                    
+                    # 生成语音
+                    status_text.text(f"正在生成第 {i} 页的语音...")
                     speech_result = generate_speech(text, emotion.split('_')[1] if '_' in emotion else emotion)
-                if speech_result and 'audio' in speech_result:
-                    st.audio(speech_result['audio'], format='audio/wav')
-                else:
-                    st.warning("無法生成語音，將顯示文本。")
-                    st.text(text)
-
-                
-                with st.spinner(f"正在生成第 {i} 頁的圖片..."):
+                    if speech_result and 'audio' in speech_result:
+                        st.audio(speech_result['audio'], format='audio/wav')
+                    else:
+                        st.warning("无法生成语音，将显示文本。")
+                        st.text(text)
+                    
+                    # 生成图片
+                    status_text.text(f"正在生成第 {i} 页的图片...")
                     image_prompt = page.get('image_prompt', '')
                     if image_prompt:
                         image_url = generate_image(image_prompt, style_base)
-                        st.image(image_url, caption=f"第 {i} 頁的插圖")
+                        st.image(image_url, caption=f"第 {i} 页的插图")
                     else:
-                        st.warning(f"第 {i} 頁沒有圖像提示")
-                time.sleep(5)  # 添加延遲以避免API限制
+                        st.warning(f"第 {i} 页没有图像提示")
+                
+                progress_bar.progress(60 + (i / len(pages)) * 40)
+                time.sleep(1)  # 添加短暂延迟以避免API限制
+
+            progress_bar.progress(100)
+            status_text.text("绘本生成完成！")
+            st.balloons()
 
         except Exception as e:
-            st.error(f"發生錯誤：{str(e)}")
+            st.error(f"发生错误：{str(e)}")
+            logger.error(f"绘本生成过程中发生错误：{str(e)}", exc_info=True)
             st.exception(e)
+
+    # 添加使用说明
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("使用说明")
+    st.sidebar.markdown("""
+    1. 在侧边栏选择或输入主角和主题。
+    2. 选择绘本页数。
+    3. 点击"生成故事转折重点选项"获取转折点建议。
+    4. 选择一个转折点或输入自定义转折点。
+    5. 点击"生成绘本"开始创作过程。
+    6. 等待生成完成，您可以查看每一页的文字、语音和图片。
+    """)
+
+    # 添加关于部分
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("关于")
+    st.sidebar.info("""
+    此应用使用 OpenAI 的 GPT-3.5 和 DALL-E 3 模型来生成故事和图片。
+    语音由 GPT-SoVITS 模型生成。
+    如有任何问题或建议，请联系开发团队。
+    """)
 
 if __name__ == "__main__":
     main()
