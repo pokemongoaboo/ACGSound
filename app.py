@@ -35,7 +35,7 @@ def create_retrying_session(retries=3, backoff_factor=0.3, status_forcelist=(500
     return session
 
 # 生成語音
-def generate_speech(text, emotion="neutral"):
+def generate_speech(text, emotion="neutral", max_retries=5, initial_wait=1, max_wait=16):
     url = "https://infer.acgnai.top/infer/gen"
     headers = {
         "Content-Type": "application/json"
@@ -65,19 +65,25 @@ def generate_speech(text, emotion="neutral"):
     }
     
     session = create_retrying_session()
-    try:
-        response = session.post(url, headers=headers, json=data)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        if response.status_code == 404:
-            st.warning("語音生成服務暫時不可用，請稍後再試。")
-        else:
-            st.error(f"語音生成 API 調用失敗：{str(e)}")
-        st.error(f"請求 URL: {url}")
-        st.error(f"請求頭: {headers}")
-        st.error(f"請求數據: {json.dumps(data, indent=2)}")
-        return None
+    wait_time = initial_wait
+
+    for attempt in range(max_retries):
+        try:
+            response = session.post(url, headers=headers, json=data)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            if attempt < max_retries - 1:  # 如果不是最後一次嘗試
+                st.warning(f"語音生成失敗，正在重試 (嘗試 {attempt + 1}/{max_retries})...")
+                time.sleep(wait_time)
+                wait_time = min(wait_time * 2, max_wait)  # 指數退避，但不超過最大等待時間
+            else:
+                st.error("語音生成服務暫時不可用，已達到最大重試次數。")
+                return None
+
+    return None  # 如果所有嘗試都失敗，返回 None
+
+
 
 # 生成故事轉折重點
 def generate_plot_points(character, theme):
@@ -259,10 +265,12 @@ def main():
                 # 生成語音
                 with st.spinner(f"正在生成第 {i} 頁的語音..."):
                     speech_result = generate_speech(text, emotion.split('_')[1] if '_' in emotion else emotion)
-                    if speech_result and 'audio' in speech_result:
-                        st.audio(speech_result['audio'], format='audio/wav')
-                    else:
-                        st.warning(f"第 {i} 頁語音生成失敗")
+                if speech_result and 'audio' in speech_result:
+                    st.audio(speech_result['audio'], format='audio/wav')
+                else:
+                    st.warning("無法生成語音，將顯示文本。")
+                    st.text(text)
+
                 
                 with st.spinner(f"正在生成第 {i} 頁的圖片..."):
                     image_prompt = page.get('image_prompt', '')
