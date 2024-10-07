@@ -48,12 +48,13 @@ def get_character_data():
     
     session = create_retrying_session()
     try:
-        response = session.get(url, headers=headers, json=data)
+        response = session.post(url, headers=headers, json=data)
         response.raise_for_status()
         return response.json()['spklist']
     except requests.exceptions.RequestException as e:
         st.error(f"API 调用失败：{str(e)}")
         return None
+
 
 # 生成语音
 def generate_speech(speaker, emotion, text):
