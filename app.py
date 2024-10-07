@@ -281,7 +281,7 @@ def main():
                     
                     # 生成语音
                     with st.spinner(f"正在生成第 {i} 页的语音..."):
-                        speech_result = generate_speech(selected_narrator, emotion, text)
+                        speech_result = generate_speech("派蒙【原神】", emotion, text)
                         if speech_result and 'audio' in speech_result:
                             st.audio(speech_result['audio'], format='audio/wav')
                         else:
