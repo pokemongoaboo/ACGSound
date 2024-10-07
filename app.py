@@ -38,8 +38,7 @@ def create_retrying_session(retries=3, backoff_factor=0.3, status_forcelist=(500
 def get_character_data():
     url = "https://infer.acgnai.top/infer/spks"
     headers = {
-        'Content-Type': 'application/json';
-        'charset' : 'utf-8'
+        'Content-Type': 'application/json'
     }
     data = {
         "type": "tts",
@@ -60,9 +59,11 @@ def get_character_data():
 # 生成语音
 def generate_speech(speaker, emotion, text):
     url = "https://infer.acgnai.top/infer/gen"
+
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json; charset=utf-8"
     }
+
     data = {
         "access_token": access_token,
         "type": "tts",
@@ -89,7 +90,8 @@ def generate_speech(speaker, emotion, text):
     
     session = create_retrying_session()
     try:
-        response = session.post(url, headers=headers, json=data)
+        json_data = json.dumps(data, ensure_ascii=False)
+        response = session.post(url, headers=headers, json=json_data.encode('utf-8'))
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
