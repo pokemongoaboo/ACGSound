@@ -38,7 +38,7 @@ def create_retrying_session(retries=3, backoff_factor=0.3, status_forcelist=(500
 def get_character_data():
     url = "https://infer.acgnai.top/infer/spks"
     headers = {
-        'Content-Type': 'application/json; charset=utf-8'
+        'Content-Type': 'application/json'
     }
     data = {
         "type": "tts",
