@@ -127,12 +127,11 @@ def generate_story(character, theme, plot_point, page_count):
     說明一個{character}的故事，
     請在故事中包含以下情緒的段落：
     "开心_happy", 
-    "疑问_question", 
     "生气_angry",
     "中立_neutral", 
     每種情緒至少出現一次，
-    在故事說明中，不需要出現_happy, _question, _angry, _neutral, 等文字,
-    並注意在倒數第三頁加入{plot_point}的元素，
+    在故事說明中，不需要出現 _happy, _angry, _neutral, 等文字,
+    並注意在倒數第二頁加入{plot_point}的元素，
     最後的故事需要是溫馨、快樂的結局。
     """
     response = client.chat.completions.create(
@@ -145,7 +144,7 @@ def generate_story(character, theme, plot_point, page_count):
 def generate_paged_story(story, page_count, character, theme, plot_point):
     prompt = f"""
     將以下故事大綱細分至預計{page_count}個跨頁的篇幅，每頁需要包括(text，image_prompt)，
-    {page_count-3}(倒數第三頁)才可以出現{plot_point}，
+    {page_count-2}(倒數第二頁)才可以出現{plot_point}，
     在這之前應該要讓{character}的{theme}世界發展故事更多元化。
     請以JSON格式回覆，格式如下：
     [
@@ -167,7 +166,7 @@ def generate_paged_story(story, page_count, character, theme, plot_point):
 def determine_emotion(text):
     prompt = f"""
     请判断以下文本的主要情绪。只能从以下选项中选择一个：
-    "开心_happy", "疑问_question", "生气_angry","中立_neutral",
+    "开心_happy", "生气_angry", "中立_neutral",
     如果无法确定，请选择"中立_neutral"。
     
     文本：{text}
@@ -240,7 +239,7 @@ def main():
             theme = st.text_input("请输入自定义主题:")
 
         # 选择页数
-        page_count = st.slider("选择绘本页数:", min_value=6, max_value=12, value=8)
+        page_count = st.slider("选择绘本页数:", min_value=3, max_value=8, value=3)
 
         # 生成并选择故事转折重点
         if st.button("生成故事转折重点选项"):
