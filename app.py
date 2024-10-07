@@ -37,9 +37,7 @@ def create_retrying_session(retries=3, backoff_factor=0.3, status_forcelist=(500
 # 获取角色数据
 def get_character_data():
     url = "https://infer.acgnai.top/infer/spks"
-    headers = {
-        "Content-Type": "application/json"
-    }
+    headers={'Content-Type': 'application/json; charset=utf-8'}
     data = {
         "type": "tts",
         "brand": "gpt-sovits",
