@@ -21,8 +21,8 @@ story_characters = ["貓咪", "狗狗", "花花", "小鳥", "小石頭"]
 themes = ["親情", "友情", "冒險", "度假", "運動比賽"]
 
 # 页面设置
-st.set_page_config(page_title="互動式繪本生成器", layout="wide")
-st.title("互動式繪本生成器")
+st.set_page_config(page_title="互動式繪本生成器(含語音版)", layout="wide")
+st.title("互動式繪本生成器(含語音版)")
 
 # 创建一个带有重试机制的会话
 def create_retrying_session(retries=3, backoff_factor=0.3, status_forcelist=(500, 502, 504)):
