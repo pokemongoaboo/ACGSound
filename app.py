@@ -283,13 +283,6 @@ def main():
                     emotion = determine_emotion(text)
                     st.write("判断的情绪：", emotion)
                     
-                    # 生成语音
-                    with st.spinner(f"正在生成第 {i} 页的语音..."):
-                        speech_result = generate_speech(selected_narrator, emotion, text)
-                        if speech_result and 'audio' in speech_result:
-                            st.audio(speech_result['audio'], format='audio/wav')
-                        else:
-                            st.warning(f"第 {i} 页语音生成失败")
                     
                     with st.spinner(f"正在生成第 {i} 页的图片..."):
                         image_prompt = page.get('image_prompt', '')
@@ -299,6 +292,15 @@ def main():
                         else:
                             st.warning(f"第 {i} 页没有图像提示")
                     time.sleep(5)  # 添加延迟以避免API限制
+
+                    # 生成语音
+                    with st.spinner(f"正在生成第 {i} 页的语音..."):
+                        speech_result = generate_speech("派蒙【原神】", emotion, text)
+                        if speech_result and 'audio' in speech_result:
+                            st.audio(speech_result['audio'], format='audio/wav')
+                        else:
+                            st.warning(f"第 {i} 页语音生成失败")
+
 
             except Exception as e:
                 st.error(f"发生错误：{str(e)}")
