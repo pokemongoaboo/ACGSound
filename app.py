@@ -164,8 +164,11 @@ def generate_paged_story(story, page_count, character, theme, plot_point):
 def determine_emotion(text):
     prompt = f"""
     请判断以下文本的主要情绪。只能从以下选项中选择一个：
-    "开心", "生气", "中立",
-    如果无法确定，请选择"中立"。
+    开心, 
+    生气, 
+    中立,
+    如果无法确定，请选择
+    中立。
     
     文本：{text}
     """
