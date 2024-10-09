@@ -54,7 +54,7 @@ def get_character_data():
         sorted_spklist = sorted(spklist.items(), key=lambda x: len(x[1]), reverse=True)
         return dict(sorted_spklist)
     except requests.exceptions.RequestException as e:
-        st.error(f"API 调用失败：{str(e)}")
+        st.error(f"API 調用失敗：{str(e)}")
         return None
 
 # 生成语音
@@ -93,10 +93,10 @@ def generate_speech(speaker, emotion, text):
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
-        st.error(f"语音生成 API 调用失败：{str(e)}")
-        st.error(f"请求 URL: {url}")
-        st.error(f"请求头: {headers}")
-        st.error(f"请求数据: {json.dumps(data, indent=2)}")
+        st.error(f"語音生成 API 調用失敗：{str(e)}")
+        st.error(f"請求 URL: {url}")
+        st.error(f"標頭: {headers}")
+        st.error(f"資料: {json.dumps(data, indent=2)}")
         return None
 
 # 生成故事转折重点
@@ -227,89 +227,89 @@ def main():
     if character_data:
         # 创建角色选择下拉菜单
         narrators = list(character_data.keys())
-        selected_narrator = st.selectbox("选择故事朗读角色", narrators)
+        selected_narrator = st.selectbox("選擇故事朗讀角色", narrators)
 
         # 选择或输入主角
-        story_character = st.selectbox("选择或输入绘本主角:", story_characters + ["其他"])
+        story_character = st.selectbox("選擇繪本故事主角:", story_characters + ["其他"])
         if story_character == "其他":
-            story_character = st.text_input("请输入自定义主角:")
+            story_character = st.text_input("請輸入自定義主角:")
 
         # 选择或输入主题
-        theme = st.selectbox("选择或输入绘本主题:", themes + ["其他"])
+        theme = st.selectbox("選擇或繪本故事主題:", themes + ["其他"])
         if theme == "其他":
-            theme = st.text_input("请输入自定义主题:")
+            theme = st.text_input("請輸入自定義主題:")
 
         # 选择页数
-        page_count = st.slider("选择绘本页数:", min_value=3, max_value=8, value=3)
+        page_count = st.slider("選擇繪本頁數:", min_value=3, max_value=8, value=3)
 
         # 生成并选择故事转折重点
-        if st.button("生成故事转折重点选项"):
+        if st.button("生成故事轉折點選項"):
             plot_points = generate_plot_points(story_character, theme)
             if plot_points:
                 st.session_state.plot_points = plot_points
             else:
-                st.error("未能生成有效的转折重点。请重试。")
+                st.error("未能生成有效的轉折重点。请重试。")
 
         if 'plot_points' in st.session_state:
-            plot_point = st.selectbox("选择或输入绘本故事转折重点:", 
-                                      ["请选择"] + st.session_state.plot_points + ["其他"])
+            plot_point = st.selectbox("選擇或輸入繪本故事轉折重點:", 
+                                      ["請選擇"] + st.session_state.plot_points + ["其他"])
             if plot_point == "其他":
-                plot_point = st.text_input("请输入自定义故事转折重点:")
+                plot_point = st.text_input("請輸入自定義故事轉折重點:")
             elif plot_point == "请选择":
-                st.warning("请选择一个转折重点或输入自定义转折重点。")
+                st.warning("請選擇一個轉折重點或輸入自定義故事轉折重點。")
 
         # 生成绘本
-        if st.button("生成绘本"):
+        if st.button("生成繪本"):
             try:
                 with st.spinner("正在生成故事..."):
                     story = generate_story(story_character, theme, plot_point, page_count)
-                    st.write("故事大纲：", story)
+                    st.write("故事大綱：", story)
 
-                with st.spinner("正在分页故事..."):
+                with st.spinner("正在分頁故事..."):
                     paged_story = generate_paged_story(story, page_count, story_character, theme, plot_point)
 
-                with st.spinner("正在生成风格基础..."):
+                with st.spinner("正在生成風格基礎..."):
                     style_base = generate_style_base(story)
 
                 # 预处理 JSON 字符串
                 processed_paged_story = preprocess_json(paged_story)
                 pages = json.loads(processed_paged_story)
 
-                st.success(f"成功解析 JSON。共有 {len(pages)} 页。")
+                st.success(f"成功解析 JSON。共有 {len(pages)} 頁。")
 
                 for i, page in enumerate(pages, 1):
-                    st.write(f"第 {i} 页")
-                    text = page.get('text', '无文字')
+                    st.write(f"第 {i} 頁")
+                    text = page.get('text', '無文字')
                     st.write("文字：", text)
                     
                     # 判断情绪
                     emotion = determine_emotion(text)
-                    st.write("判断的情绪：", emotion)
+                    st.write("判斷的情緒：", emotion)
                     
                     
-                    with st.spinner(f"正在生成第 {i} 页的图片..."):
+                    with st.spinner(f"正在生成第 {i} 頁的圖片..."):
                         image_prompt = page.get('image_prompt', '')
                         if image_prompt:
                             image_url = generate_image(image_prompt, style_base)
-                            st.image(image_url, caption=f"第 {i} 页的插图")
+                            st.image(image_url, caption=f"第 {i} 頁的插圖")
                         else:
-                            st.warning(f"第 {i} 页没有图像提示")
+                            st.warning(f"第 {i} 頁沒有圖像提示")
                     time.sleep(5)  # 添加延迟以避免API限制
 
                     # 生成语音
-                    with st.spinner(f"正在生成第 {i} 页的语音..."):
+                    with st.spinner(f"正在生成第 {i} 頁的語音..."):
                         speech_result = generate_speech("派蒙【原神】", emotion, text)
                         if speech_result and 'audio' in speech_result:
                             st.audio(speech_result['audio'], format='audio/wav')
                         else:
-                            st.warning(f"第 {i} 页语音生成失败")
+                            st.warning(f"第 {i} 頁語音生成失敗")
 
 
             except Exception as e:
-                st.error(f"发生错误：{str(e)}")
+                st.error(f"發生錯誤：{str(e)}")
                 st.exception(e)
     else:
-        st.error("无法获取角色数据，请检查 API 连接。")
+        st.error("無法獲取角色資料，請檢查 API 連結。")
 
 if __name__ == "__main__":
     main()
